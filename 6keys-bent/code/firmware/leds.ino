@@ -30,4 +30,9 @@ void setSingleLED(int pos, RgbColor color) {
   strip.Show();
 }
 
-
+void setAllLEDs( RgbColor color) {
+  for(int i=0; i<PixelCount; i++) {
+    strip.SetPixelColor(i,color);
+  }
+  strip.Show();
+}

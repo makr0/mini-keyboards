@@ -1,0 +1,4 @@
+#define STATE_RUN 1
+#define STATE_SELECT_LAYER 2
+#define STATE_DEMO 3
+

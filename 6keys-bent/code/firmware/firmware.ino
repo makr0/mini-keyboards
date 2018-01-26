@@ -3,6 +3,7 @@
 #include <Keyboard.h>
 #include <Mouse.h>
 #include "layers.h"
+#include "states.h"
 
 int ledBrightness = 5;
 HslColor red(RgbColor(ledBrightness, 0, 0));
@@ -26,6 +27,8 @@ int buttonPins[NUM_KEYS] = {4,14,16,7,6,5};
 Encoder knob(2, 3);
 long knobPos = 0;
 long knobPos_old = 0;
+long savedKnobPos = 0;
+int state = STATE_RUN;
 typedef void (*button_func) ();
 button_func macros[NUM_LAYERS][NUM_KEYS] = {
   {macro_11, macro_12, macro_13, macro_14, macro_15, macro_16},
@@ -59,46 +62,83 @@ void setup()
 
 void loop()
 {
-  for (int i=0; i<NUM_KEYS; i++)
-  {
-    if (!digitalRead(buttonPins[i])) {
-      setSingleLED(layer,black);
-      macros[layer][i]();
-      delay(2);
-      while(!digitalRead(buttonPins[i])) {
-        delay(2);
-      }
-      setSingleLED(layer,red);
-    }
+  checkButtons();
+  checkEncoderButton();
+  knobPos = knob.read();
+  if( knobPos != knobPos_old ) {
+    handleMousewheel(knobPos, knobPos_old);
+    knobPos_old = knobPos;
   }
-  handleLayerChange();
-  handleMousewheel();
+  updateLEDS();
 }
 
-void handleLayerChange() {
+void checkEncoderButton() {
   if (!digitalRead(Encoder_button)) {
-      delay(2);
-      while(!digitalRead(Encoder_button)) {
-        delay(2);
-      }
-      knob.write(layer*4);
-      while(digitalRead(Encoder_button)) {
-        layer = knob.read()/4;
-        layer=constrain(layer,0,NUM_LAYERS-1);
-        setSingleLED(layer,green);
-      }
+      delay(20);
       while(!digitalRead(Encoder_button)) {
         delay(50);
       }
-      setSingleLED(layer,red);
-      // restore old knobPos
-      knob.write(knobPos);
+      handleEncoderClick();
   }
 }
-void handleMousewheel() {
-  knobPos = knob.read();
-  if( knobPos != knobPos_old ) {
-    Mouse.move(0,0,(knobPos_old-knobPos));
-    knobPos_old = knobPos;
+void checkButtons() {
+  for (int i=0; i<NUM_KEYS; i++)
+  {
+    if (!digitalRead(buttonPins[i])) {
+      delay(2);
+      handleButton(i);
+      while(!digitalRead(buttonPins[i])) {
+        delay(2);
+      }
+    }
+  }
+  return NUM_KEYS +1;
+}
+
+void handleEncoderClick() {
+  if( state == STATE_RUN ) {
+    // enter state select layer
+    state = STATE_SELECT_LAYER;
+    // save old knob Pos
+    savedKnobPos = knobPos;
+    knob.write(layer*4);
+    return;
+  }
+
+  if( state == STATE_SELECT_LAYER ) {
+    // restore old knobPos
+    knob.write(savedKnobPos);
+    knobPos = savedKnobPos;
+    knobPos_old = savedKnobPos;
+    state = STATE_RUN;
+    setSingleLED(layer,red);
   }
 }
+void handleMousewheel(long knobPos,long knobPos_old) {
+  if( state == STATE_RUN ) {
+      Mouse.move(0,0,(knobPos_old-knobPos));
+  }
+  if( state == STATE_SELECT_LAYER ) {
+    layer = knobPos/4;
+    layer = constrain(layer,0,NUM_LAYERS-1);
+    setSingleLED(layer,green);
+  }
+}
+
+void handleButton(int button) {
+  if( state == STATE_RUN ) {
+    setSingleLED(layer,blue);
+    macros[layer][button]();
+    setSingleLED(layer,red);
+  }
+  if( state == STATE_SELECT_LAYER ) {
+    layer = button;
+  }
+}
+
+void updateLEDS() {
+  if( state == STATE_SELECT_LAYER ) {
+    setSingleLED(layer,green);
+  }
+}
+
